@@ -8,63 +8,67 @@ import React, { useState, useEffect } from 'react';
     import { useLocalStorage } from '@/hooks/useLocalStorage';
     import { useToast } from '@/components/ui/use-toast';
 
-    const PinSettings = ({ setIsPinEnabled: setAppPinEnabled, setStoredPin: setAppStoredPin }) => {
-      const [pin, setPin] = useState('');
-      const [confirmPin, setConfirmPin] = useState('');
-      const [isPinEnabled, setIsPinEnabled] = useLocalStorage('isPinEnabled', false);
-      const [storedPin, setStoredPin] = useLocalStorage('appPin', '');
+    const PinSettings = ({ setIsPinEnabled: setAppPinEnabledStatus, setStoredPin: setAppStoredPin, isPinCurrentlyEnabled }) => {
+      const [pinInput, setPinInput] = useState('');
+      const [confirmPinInput, setConfirmPinInput] = useState('');
+      const [isPinSwitchOn, setIsPinSwitchOn] = useState(isPinCurrentlyEnabled);
+      
+      const [storedPin, setStoredPinInLocalStorage] = useLocalStorage('appPin', '');
       const { toast } = useToast();
 
       useEffect(() => {
-        if (isPinEnabled && storedPin) {
-          setPin(storedPin);
-          setConfirmPin(storedPin);
-        } else {
-          setPin('');
-          setConfirmPin('');
+        setIsPinSwitchOn(isPinCurrentlyEnabled);
+        if (isPinCurrentlyEnabled && storedPin) {
+          setPinInput(storedPin);
+          setConfirmPinInput(storedPin);
+        } else if (!isPinCurrentlyEnabled) {
+          setPinInput('');
+          setConfirmPinInput('');
         }
-      }, [isPinEnabled, storedPin]);
+      }, [isPinCurrentlyEnabled, storedPin]);
 
       const handlePinToggle = (checked) => {
-        if (checked) {
-          if (!storedPin && !pin) { // Check if neither storedPin nor current pin input exists
-            toast({ title: "تنبيه", description: "يرجى تعيين PIN أولاً قبل تفعيله.", variant: "default" });
-            return;
-          }
-           if (!storedPin && pin && pin === confirmPin && pin.length >=4){
-             // If no stored PIN, but user entered a valid new PIN and tries to enable
-             setStoredPin(pin);
-             setAppStoredPin(pin);
-           } else if (!storedPin){
-             toast({ title: "تنبيه", description: "يرجى تعيين PIN صالح أولاً قبل تفعيله.", variant: "default" });
-             return;
-           }
+        if (checked && !storedPin) {
+          toast({ title: "تنبيه", description: "يرجى حفظ PIN أولاً قبل تفعيله.", variant: "default" });
+          setIsPinSwitchOn(false); 
+          return;
         }
-        setIsPinEnabled(checked);
-        setAppPinEnabled(checked);
+        setIsPinSwitchOn(checked);
+        setAppPinEnabledStatus(checked);
         toast({ title: "نجاح", description: `تم ${checked ? 'تفعيل' : 'تعطيل'} قفل PIN.` });
       };
 
       const handleSavePin = () => {
-        if (pin.length < 4) {
+        if (pinInput.length < 4) {
           toast({ title: "خطأ", description: "يجب أن يتكون PIN من 4 أرقام على الأقل.", variant: "destructive" });
           return;
         }
-        if (pin !== confirmPin) {
+        if (pinInput !== confirmPinInput) {
           toast({ title: "خطأ", description: "رمزي PIN غير متطابقين.", variant: "destructive" });
           return;
         }
-        setStoredPin(pin);
-        setAppStoredPin(pin);
         
-        if (!isPinEnabled) { // If PIN was not enabled, enable it now that a PIN is saved.
-            setIsPinEnabled(true);
-            setAppPinEnabled(true);
-             toast({ title: "نجاح", description: "تم حفظ PIN بنجاح وتفعيله." });
+        setStoredPinInLocalStorage(pinInput);
+        setAppStoredPin(pinInput); 
+        
+        if (!isPinSwitchOn) {
+            toast({ title: "نجاح", description: "تم حفظ PIN بنجاح. يمكنك تفعيله الآن." });
         } else {
-            toast({ title: "نجاح", description: "تم تحديث PIN بنجاح." });
+            setAppPinEnabledStatus(true); 
+            toast({ title: "نجاح", description: "تم تحديث PIN وتفعيله بنجاح." });
         }
       };
+      
+      const handleClearPin = () => {
+        setPinInput('');
+        setConfirmPinInput('');
+        setStoredPinInLocalStorage('');
+        setAppStoredPin('');
+        setIsPinSwitchOn(false);
+        setAppPinEnabledStatus(false);
+        toast({ title: "نجاح", description: "تم مسح PIN وتعطيل القفل." });
+      };
+
 
       return (
         <Card className="shadow-xl bg-card/80 backdrop-blur-sm">
@@ -82,8 +86,9 @@ import React, { useState, useEffect } from 'react';
               <Label htmlFor="pin-enable" className="text-base">تفعيل قفل PIN</Label>
               <Switch
                 id="pin-enable"
-                checked={isPinEnabled}
+                checked={isPinSwitchOn}
                 onCheckedChange={handlePinToggle}
+                disabled={!storedPin && pinInput.length < 4} 
               />
             </div>
             <div className="space-y-2">
@@ -91,8 +96,8 @@ import React, { useState, useEffect } from 'react';
               <Input 
                 id="pin" 
                 type="password" 
-                value={pin} 
-                onChange={(e) => setPin(e.target.value)} 
+                value={pinInput} 
+                onChange={(e) => setPinInput(e.target.value)} 
                 maxLength={20} 
                 placeholder="••••"
               />
@@ -102,15 +107,20 @@ import React, { useState, useEffect } from 'react';
               <Input 
                 id="confirm-pin" 
                 type="password" 
-                value={confirmPin} 
-                onChange={(e) => setConfirmPin(e.target.value)} 
+                value={confirmPinInput} 
+                onChange={(e) => setConfirmPinInput(e.target.value)} 
                 maxLength={20}
                 placeholder="••••"
               />
             </div>
             <Button onClick={handleSavePin} className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity text-primary-foreground">
-              <Save className="mr-2 rtl:ml-2 h-4 w-4"/> {storedPin ? 'تحديث PIN' : 'حفظ وتفعيل PIN'}
+              <Save className="mr-2 rtl:ml-2 h-4 w-4"/> {storedPin ? 'تحديث PIN' : 'حفظ PIN'}
             </Button>
+            {storedPin && (
+                 <Button onClick={handleClearPin} variant="destructive" className="w-full">
+                    مسح PIN وتعطيل القفل
+                </Button>
+            )}
           </CardContent>
         </Card>
       );
