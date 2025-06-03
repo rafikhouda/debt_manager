@@ -7,7 +7,7 @@ import React from 'react';
 
     const DEFAULT_CURRENCY = 'DZD';
 
-    const SettingsPage = ({ setIsPinEnabled, setStoredPin }) => {
+    const SettingsPage = ({ setIsPinEnabled, setStoredPin, isPinCurrentlyEnabled }) => {
       const containerVariants = {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
@@ -25,7 +25,11 @@ import React from 'react';
           </motion.h1>
 
           <motion.div variants={itemVariants}>
-            <PinSettings setIsPinEnabled={setIsPinEnabled} setStoredPin={setStoredPin} />
+            <PinSettings 
+              setIsPinEnabled={setIsPinEnabled} 
+              setStoredPin={setStoredPin} 
+              isPinCurrentlyEnabled={isPinCurrentlyEnabled}
+            />
           </motion.div>
           
           <motion.div variants={itemVariants}>
