@@ -11,7 +11,17 @@ import React from 'react';
       { to: '/settings', label: 'الإعدادات', icon: Settings },
     ];
 
-    const Navbar = () => {
+const AppLogo = () => (
+      <motion.img
+        src="https://archive.org/download/debt1/debt1.png"
+        alt="شعار مدير الديون"
+        className="h-10 w-10"
+        animate={{ opacity: [0.5, 1, 0.5] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      />
+    );    
+
+const Navbar = () => {
       return (
         <motion.nav 
           initial={{ y: -100 }}
@@ -22,7 +32,7 @@ import React from 'react';
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between h-20">
               <NavLink to="/" className="flex items-center space-x-3 rtl:space-x-reverse">
-                <Landmark className="h-10 w-10 text-primary-foreground animate-pulse" />
+                <AppLogo />
                 <span className="text-2xl font-bold text-primary-foreground">مدير الديون</span>
               </NavLink>
               <div className="hidden md:flex items-center space-x-2 rtl:space-x-reverse">
