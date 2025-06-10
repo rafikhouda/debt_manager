@@ -1,6 +1,6 @@
 import React from 'react';
     import { NavLink } from 'react-router-dom';
-    import { Home, ListChecks, Users, History, Settings, Landmark } from 'lucide-react';
+    import { Home, ListChecks, Users, History, Settings } from 'lucide-react';
     import { motion } from 'framer-motion';
 
     const navItems = [
@@ -11,7 +11,7 @@ import React from 'react';
       { to: '/settings', label: 'الإعدادات', icon: Settings },
     ];
 
-const AppLogo = () => (
+    const AppLogo = () => (
       <motion.img
         src="https://archive.org/download/debt1/debt1.png"
         alt="شعار مدير الديون"
@@ -19,9 +19,9 @@ const AppLogo = () => (
         animate={{ opacity: [0.5, 1, 0.5] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       />
-    );    
+    );
 
-const Navbar = () => {
+    const Navbar = () => {
       return (
         <motion.nav 
           initial={{ y: -100 }}
