@@ -1,17 +1,31 @@
-import React from 'react';
-    import { Users, CheckCircle, XCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+    import { Users, CheckCircle, XCircle, UploadCloud } from 'lucide-react';
     import { Button } from '@/components/ui/button';
     import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-    import { useLocalStorage } from '@/hooks/useLocalStorage';
     import { useToast } from '@/components/ui/use-toast';
+    import { useLocalStorage } from '@/hooks/useLocalStorage';
 
     const ContactSettings = () => {
-      const [permissionGranted, setPermissionGranted] = useLocalStorage('contactsPermissionGranted', false);
+      const [contactsPermission, setContactsPermission] = useState('prompt');
       const [people, setPeople] = useLocalStorage('people', []);
       const { toast } = useToast();
+      const [isPickerSupported, setIsPickerSupported] = useState(false);
+      const [isPickingContacts, setIsPickingContacts] = useState(false);
 
-      const requestContactsPermission = async () => {
-        if (!('contacts' in navigator && 'select' in navigator.contacts)) {
+      useEffect(() => {
+        if ('contacts' in navigator && 'ContactsManager' in window) {
+          setIsPickerSupported(true);
+          navigator.permissions.query({ name: 'contacts' }).then(status => {
+            setContactsPermission(status.state);
+            status.onchange = () => setContactsPermission(status.state);
+          });
+        } else {
+          setIsPickerSupported(false);
+        }
+      }, []);
+
+      const handleRequestContacts = async () => {
+        if (!isPickerSupported) {
           toast({
             title: "غير مدعوم",
             description: "متصفحك لا يدعم الوصول إلى جهات الاتصال.",
@@ -20,64 +34,71 @@ import React from 'react';
           return;
         }
 
+        if (isPickingContacts) {
+          toast({
+            title: "لحظة من فضلك",
+            description: "عملية اختيار جهات الاتصال جارية بالفعل.",
+            variant: "default",
+          });
+          return;
+        }
+
+        setIsPickingContacts(true);
         try {
           const props = ['name', 'tel'];
           const opts = { multiple: true };
           const contacts = await navigator.contacts.select(props, opts);
-
+          
           if (contacts.length > 0) {
-            setPermissionGranted(true);
-            const newPeople = contacts.map(contact => {
-              // Assuming the first name and first tel are primary.
-              // This might need more sophisticated handling for multiple names/numbers.
-              const name = contact.name && contact.name.length > 0 ? contact.name[0] : 'اسم غير معروف';
-              const tel = contact.tel && contact.tel.length > 0 ? contact.tel[0] : '';
-              return { 
-                id: `contact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Unique ID
-                name: name, 
-                type: 'individual', // Default type
-                phone: tel // Store phone number if available
-              };
-            }).filter(p => p.name !== 'اسم غير معروف'); // Filter out contacts with no name
+            const newPeople = contacts.map(contact => ({
+              id: window.crypto.randomUUID(),
+              name: contact.name ? contact.name.join(', ') : 'اسم غير معروف',
+              phone: contact.tel ? contact.tel[0] : '',
+              email: '', 
+              notes: 'مستورد من جهات الاتصال',
+            }));
 
-            // Add only new contacts (prevent duplicates by name, can be improved with phone too)
-            const existingNames = new Set(people.map(p => p.name.toLowerCase()));
-            const uniqueNewPeople = newPeople.filter(np => !existingNames.has(np.name.toLowerCase()));
+            const uniqueNewPeople = newPeople.filter(np => 
+              !people.some(p => p.name === np.name && p.phone === np.phone)
+            );
 
             if (uniqueNewPeople.length > 0) {
               setPeople(prevPeople => [...prevPeople, ...uniqueNewPeople]);
               toast({
                 title: "نجاح",
-                description: `تم استيراد ${uniqueNewPeople.length} جهة اتصال جديدة.`,
-              });
-            } else if (newPeople.length > 0) {
-               toast({
-                title: "معلومة",
-                description: "لم يتم العثور على جهات اتصال جديدة غير موجودة مسبقًا.",
-                variant: "default",
+                description: `تم استيراد ${uniqueNewPeople.length} جهة اتصال جديدة بنجاح!`,
               });
             } else {
-               toast({
-                title: "لم يتم الاختيار",
-                description: "لم يتم اختيار أي جهات اتصال.",
+              toast({
+                title: "لا توجد جهات اتصال جديدة",
+                description: "لم يتم العثور على جهات اتصال جديدة غير موجودة مسبقًا.",
                 variant: "default",
               });
             }
           } else {
-             toast({
-                title: "لم يتم الاختيار",
-                description: "لم يتم اختيار أي جهات اتصال.",
-                variant: "default",
-              });
+            toast({
+              title: "لم يتم اختيار جهات اتصال",
+              description: "لم تقم باختيار أي جهات اتصال.",
+              variant: "default",
+            });
           }
-        } catch (err) {
-          setPermissionGranted(false);
-          toast({
-            title: "خطأ في الأذونات",
-            description: "تم رفض الإذن أو حدث خطأ: " + err.message,
-            variant: "destructive",
-          });
-          console.error("Error accessing contacts:", err);
+        } catch (error) {
+          console.error("Error selecting contacts:", error);
+          if (error.name === 'InvalidStateError' && error.message.includes('already in use')) {
+             toast({
+              title: "خطأ في الأذونات",
+              description: "تم رفض الإذن أو حدث خطأ: منتقي جهات الاتصال قيد الاستخدام بالفعل. يرجى المحاولة مرة أخرى بعد إغلاق أي نوافذ منبثقة لاختيار جهات الاتصال.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "خطأ في الأذونات",
+              description: "تم رفض الإذن أو حدث خطأ أثناء محاولة الوصول لجهات الاتصال.",
+              variant: "destructive",
+            });
+          }
+        } finally {
+          setIsPickingContacts(false);
         }
       };
 
@@ -93,24 +114,37 @@ import React from 'react';
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {permissionGranted ? (
-              <div className="flex items-center text-green-600">
-                <CheckCircle className="mr-2 rtl:ml-2 h-5 w-5" />
-                <span>تم منح الإذن لجهات الاتصال. يمكنك الآن استيراد جهات الاتصال.</span>
-              </div>
-            ) : (
-              <div className="flex items-center text-orange-600">
-                <XCircle className="mr-2 rtl:ml-2 h-5 w-5" />
-                <span>الإذن لجهات الاتصال غير ممنوح.</span>
+            {!isPickerSupported && (
+              <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-md">
+                <p className="font-bold">ميزة غير مدعومة</p>
+                <p>متصفحك الحالي لا يدعم واجهة برمجة تطبيقات Contact Picker. قد لا تعمل هذه الميزة.</p>
               </div>
             )}
-            <Button onClick={requestContactsPermission} variant="outline" className="w-full">
-              {permissionGranted ? "استيراد المزيد من جهات الاتصال" : "طلب إذن الوصول واستيراد جهات الاتصال"}
-            </Button>
-             <p className="text-xs text-muted-foreground">
-              ملاحظة: هذه الميزة تعتمد على دعم متصفحك لـ Contact Picker API. قد لا تعمل في جميع المتصفحات أو الأجهزة.
-              البيانات المستوردة تُخزن محليًا فقط على جهازك.
-            </p>
+            {isPickerSupported && (
+              <>
+                <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                  {contactsPermission === 'granted' ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-500" />
+                  )}
+                  <span className={`text-sm ${contactsPermission === 'granted' ? 'text-green-600' : 'text-red-600'}`}>
+                    {contactsPermission === 'granted' ? 'الإذن لجهات الاتصال ممنوح' : 'الإذن لجهات الاتصال غير ممنوح'}
+                  </span>
+                </div>
+                <Button 
+                  onClick={handleRequestContacts} 
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity text-primary-foreground"
+                  disabled={isPickingContacts}
+                >
+                  <UploadCloud className="mr-2 rtl:ml-2 h-4 w-4" />
+                  {isPickingContacts ? 'جاري الاستيراد...' : 'طلب إذن الوصول واستيراد جهات الاتصال'}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  ملاحظة: هذه الميزة تعتمد على دعم متصفحك لـ Contact Picker API. قد لا تعمل في جميع المتصفحات أو الأجهزة. البيانات المستوردة تُخزن محليًا فقط على جهازك.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       );
