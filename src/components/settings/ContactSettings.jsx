@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
     import { Users, CheckCircle, XCircle, UploadCloud } from 'lucide-react';
     import { Button } from '@/components/ui/button';
     import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,12 +12,26 @@ import React, { useState, useEffect } from 'react';
       const [isPickerSupported, setIsPickerSupported] = useState(false);
       const [isPickingContacts, setIsPickingContacts] = useState(false);
 
+      const updateCurrentPermissionStatus = useCallback(async () => {
+        if ('contacts' in navigator && 'ContactsManager' in window) {
+          try {
+            const status = await navigator.permissions.query({ name: 'contacts' });
+            setContactsPermission(status.state);
+          } catch (err) {
+            console.error("Error querying contacts permission:", err);
+            setContactsPermission('prompt'); 
+          }
+        }
+      }, []);
+
       useEffect(() => {
         if ('contacts' in navigator && 'ContactsManager' in window) {
           setIsPickerSupported(true);
           navigator.permissions.query({ name: 'contacts' }).then(status => {
             setContactsPermission(status.state);
-            status.onchange = () => setContactsPermission(status.state);
+            status.onchange = () => {
+              setContactsPermission(status.state);
+            };
           });
         } else {
           setIsPickerSupported(false);
@@ -83,22 +97,36 @@ import React, { useState, useEffect } from 'react';
             });
           }
         } catch (error) {
-          console.error("Error selecting contacts:", error);
-          if (error.name === 'InvalidStateError' && error.message.includes('already in use')) {
+          console.error("Error selecting contacts:", error.name, error.message);
+          if (error.name === 'InvalidStateError') {
              toast({
-              title: "خطأ في الأذونات",
-              description: "تم رفض الإذن أو حدث خطأ: منتقي جهات الاتصال قيد الاستخدام بالفعل. يرجى المحاولة مرة أخرى بعد إغلاق أي نوافذ منبثقة لاختيار جهات الاتصال.",
+              title: "خطأ",
+              description: "منتقي جهات الاتصال قيد الاستخدام بالفعل. يرجى إغلاق النافذة الأخرى والمحاولة مرة أخرى.",
               variant: "destructive",
             });
-          } else {
+          } else if (error.name === 'NotAllowedError') {
             toast({
-              title: "خطأ في الأذونات",
-              description: "تم رفض الإذن أو حدث خطأ أثناء محاولة الوصول لجهات الاتصال.",
+              title: "تم رفض الإذن",
+              description: "لقد رفضت الإذن للوصول إلى جهات الاتصال.",
+              variant: "destructive",
+            });
+          } else if (error.name === 'AbortError') {
+            toast({
+              title: "تم الإلغاء",
+              description: "ألغيت عملية اختيار جهات الاتصال.",
+              variant: "default",
+            });
+          }
+          else {
+            toast({
+              title: "خطأ غير متوقع",
+              description: "حدث خطأ أثناء محاولة الوصول لجهات الاتصال. يرجى المحاولة مرة أخرى.",
               variant: "destructive",
             });
           }
         } finally {
           setIsPickingContacts(false);
+          updateCurrentPermissionStatus(); 
         }
       };
 
@@ -129,7 +157,8 @@ import React, { useState, useEffect } from 'react';
                     <XCircle className="h-5 w-5 text-red-500" />
                   )}
                   <span className={`text-sm ${contactsPermission === 'granted' ? 'text-green-600' : 'text-red-600'}`}>
-                    {contactsPermission === 'granted' ? 'الإذن لجهات الاتصال ممنوح' : 'الإذن لجهات الاتصال غير ممنوح'}
+                    {contactsPermission === 'granted' ? 'الإذن لجهات الاتصال ممنوح' : 
+                     contactsPermission === 'denied' ? 'الإذن لجهات الاتصال مرفوض' : 'يتطلب الإذن لجهات الاتصال'}
                   </span>
                 </div>
                 <Button 
@@ -138,7 +167,7 @@ import React, { useState, useEffect } from 'react';
                   disabled={isPickingContacts}
                 >
                   <UploadCloud className="mr-2 rtl:ml-2 h-4 w-4" />
-                  {isPickingContacts ? 'جاري الاستيراد...' : 'طلب إذن الوصول واستيراد جهات الاتصال'}
+                  {isPickingContacts ? 'جاري الاستيراد...' : 'طلب إذن واستيراد جهات الاتصال'}
                 </Button>
                 <p className="text-xs text-muted-foreground">
                   ملاحظة: هذه الميزة تعتمد على دعم متصفحك لـ Contact Picker API. قد لا تعمل في جميع المتصفحات أو الأجهزة. البيانات المستوردة تُخزن محليًا فقط على جهازك.
